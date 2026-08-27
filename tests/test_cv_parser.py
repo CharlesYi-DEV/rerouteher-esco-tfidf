@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import unittest
+from unittest.mock import patch
 
 from docx import Document
 
@@ -66,6 +67,72 @@ Skills: Python, SQL
         parsed = parse_cv("unstructured.txt", text.encode())
         self.assertEqual(parsed.job_title, "Software Engineer")
         self.assertIn("No standard experience heading", parsed.warnings[0])
+
+    def test_two_column_pdf_is_read_in_column_order(self) -> None:
+        left = """PROFILE
+Data science postgraduate student
+SKILLS
+Python Programming
+SQL Proficient
+Business Relationship
+Management
+Project Management
+LANGUAGE
+English
+"""
+        right = """EDUCATION
+Master of Data Science 2025 - Present
+EXPERIENCE
+Technical Sales Engineer Apr. 2024 - Dec. 2024
+Example Machinery Ltd
+Co-Founder Oct. 2021 - Jun. 2025
+Example Store
+PROJECTS
+Machine Learning Project 2024
+"""
+
+        class FakeCrop:
+            def __init__(self, text: str) -> None:
+                self.text = text
+
+            def extract_text(self, **_: object) -> str:
+                return self.text
+
+        class FakePage:
+            bbox = (0.0, 0.0, 600.0, 800.0)
+
+            def extract_text(self, **_: object) -> str:
+                return "SKILLS EXPERIENCE\nApr. 2024 - Dec. 2024\nOct. 2021 - Jun. 2025"
+
+            def crop(self, bbox: tuple[float, float, float, float]) -> FakeCrop:
+                return FakeCrop(left if bbox[0] == 0.0 else right)
+
+        class FakePdf:
+            pages = [FakePage()]
+
+            def __enter__(self) -> "FakePdf":
+                return self
+
+            def __exit__(self, *_: object) -> None:
+                return None
+
+        class FakeReader:
+            is_encrypted = False
+            pages = [object()]
+
+        with patch("api.cv_parser.PdfReader", return_value=FakeReader()), patch(
+            "api.cv_parser.pdfplumber.open", return_value=FakePdf()
+        ):
+            parsed = parse_cv("two-column.pdf", b"%PDF synthetic two-column resume")
+
+        self.assertEqual(parsed.job_title, "Co-Founder")
+        self.assertEqual(parsed.work_length_years, 3.75)
+        self.assertEqual(parsed.total_experience_years, 3.75)
+        self.assertEqual(
+            parsed.skills,
+            ["Python Programming", "SQL Proficient", "Business Relationship Management", "Project Management"],
+        )
+        self.assertNotIn("No standard experience heading", parsed.warnings)
 
     def test_unsupported_file_is_rejected(self) -> None:
         with self.assertRaises(CvParseError):

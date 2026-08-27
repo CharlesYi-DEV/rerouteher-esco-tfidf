@@ -8,6 +8,7 @@ from datetime import date
 from pathlib import Path
 from typing import Iterable
 
+import pdfplumber
 from docx import Document
 from pypdf import PdfReader
 
@@ -68,6 +69,8 @@ SKILLS_HEADINGS = {
     "technologies",
 }
 OTHER_HEADINGS = {
+    "about me",
+    "contact",
     "profile",
     "summary",
     "professional summary",
@@ -76,6 +79,12 @@ OTHER_HEADINGS = {
     "qualifications",
     "certifications",
     "projects",
+    "project & publication",
+    "project and publication",
+    "projects & publications",
+    "projects and publications",
+    "seeking opportunities",
+    "language",
     "languages",
     "awards",
     "references",
@@ -125,6 +134,7 @@ ROLE_WORDS = {
     "lead",
 }
 COMPANY_WORDS = {"berhad", "bhd", "company", "corp", "corporation", "inc", "limited", "llc", "ltd", "plc", "sdn"}
+SKILL_LINE_CONTINUATIONS = {"administration", "analysis", "design", "development", "engineering", "management"}
 
 
 class CvParseError(ValueError):
@@ -164,6 +174,37 @@ def _heading(line: str) -> str | None:
     return candidate if candidate in ALL_HEADINGS else None
 
 
+def _pdf_page_text(page) -> str:
+    """Extract one PDF page, preferring column order for sidebar CV layouts."""
+    default_text = page.extract_text(x_tolerance=2, y_tolerance=3) or ""
+    x0, top, x1, bottom = page.bbox
+    width = x1 - x0
+    best: tuple[int, str] | None = None
+
+    # Most two-column CVs place a narrow sidebar beside a wider main column.
+    # Try several plausible gutters and accept a split only when recognized CV
+    # headings occur on both sides, including Skills and Experience somewhere.
+    for ratio in (0.40, 0.44, 0.46, 0.50, 0.54, 0.58, 0.60):
+        split = x0 + width * ratio
+        left = page.crop((x0, top, split, bottom)).extract_text(x_tolerance=2, y_tolerance=3) or ""
+        right = page.crop((split, top, x1, bottom)).extract_text(x_tolerance=2, y_tolerance=3) or ""
+        if len(left.strip()) < 40 or len(right.strip()) < 80:
+            continue
+        left_headings = {_heading(line) for line in _clean_lines(left)} - {None}
+        right_headings = {_heading(line) for line in _clean_lines(right)} - {None}
+        headings = left_headings | right_headings
+        if not left_headings or not right_headings:
+            continue
+        if not (headings & EXPERIENCE_HEADINGS and headings & SKILLS_HEADINGS):
+            continue
+        score = len(left_headings) + len(right_headings)
+        candidate = f"{left.strip()}\n{right.strip()}"
+        if best is None or score > best[0]:
+            best = (score, candidate)
+
+    return best[1] if best else default_text
+
+
 def _extract_text(filename: str, content: bytes) -> str:
     extension = Path(filename).suffix.lower()
     if extension not in SUPPORTED_EXTENSIONS:
@@ -185,7 +226,12 @@ def _extract_text(filename: str, content: bytes) -> str:
                     raise CvParseError("Encrypted PDFs are not supported.")
             if len(reader.pages) > 50:
                 raise CvParseError("The PDF exceeds the 50-page test limit.")
-            text = "\n".join(page.extract_text() or "" for page in reader.pages)
+            try:
+                with pdfplumber.open(io.BytesIO(content)) as pdf:
+                    text = "\n".join(_pdf_page_text(page) for page in pdf.pages)
+            except Exception:
+                # Retain pypdf as a compatibility fallback for unusual PDFs.
+                text = "\n".join(page.extract_text() or "" for page in reader.pages)
         elif extension == ".docx":
             with zipfile.ZipFile(io.BytesIO(content)) as archive:
                 if len(archive.infolist()) > 5_000 or sum(item.file_size for item in archive.infolist()) > 50 * 1024 * 1024:
@@ -361,7 +407,14 @@ def _split_skills(values: Iterable[str]) -> list[str]:
 
 def _extract_skills(lines: list[str], text: str, official_skill_groups: Iterable[str]) -> tuple[list[str], str]:
     section, heading = _section(lines, SKILLS_HEADINGS)
-    skills = _split_skills(section[:20]) if section else []
+    skill_lines: list[str] = []
+    for line in section[:20]:
+        normalized = re.sub(r"[^a-z]+", " ", line.lower()).strip()
+        if skill_lines and normalized in SKILL_LINE_CONTINUATIONS:
+            skill_lines[-1] = f"{skill_lines[-1]} {line}"
+        else:
+            skill_lines.append(line)
+    skills = _split_skills(skill_lines) if skill_lines else []
     sources = [f"{heading} section"] if skills and heading else []
 
     if not skills:
