@@ -1,0 +1,20 @@
+{
+  "jobhop_rows": 47224,
+  "jobhop_resumes": 35568,
+  "jobhop_distinct_codes": 2278,
+  "exact_esco_skill_link_rows": 46621,
+  "exact_esco_skill_link_rate": 0.987231,
+  "exact_esco_codes": 2242,
+  "catalog_codes": 3349,
+  "catalog_codes_present_in_jobhop": 2254,
+  "skill_link_rows": 55265,
+  "duration_method": "Quarter-granularity elapsed estimate; minimum 0.25 years for same-quarter records.",
+  "esco_join_method": "Strict normalized preferred-title match between official crosswalk and ESCO v1.2.1 matrix.",
+  "masco_note": "Four-digit candidates are not an official ESCO-to-MASCO crosswalk and require validation.",
+  "source_files": {
+    "jobhop": "jobhop_v2_confirmed_active_2019plus.csv",
+    "esco_crosswalk": "ESCO_to_ONET-SOC_official.xlsx",
+    "esco_matrix": "ESCO_v1.2.1_skills_occupations_matrix.xlsx",
+    "masco_catalog": "masco_2020_individual_occupations_en.csv"
+  }
+}

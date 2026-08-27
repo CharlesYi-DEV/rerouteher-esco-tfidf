@@ -1,0 +1,10 @@
+{
+  "model": "TF-IDF char_wb(3,5) + word(1,2) + LogisticRegression",
+  "trained_exact_esco_classes": 438,
+  "full_fallback_catalog_classes": 2980,
+  "synthetic_typo_top1_accuracy": 1.0,
+  "synthetic_typo_top3_accuracy": 1.0,
+  "evaluation_warning": "Synthetic taxonomy robustness only; not independent real-resume accuracy.",
+  "minimum_jobhop_records_per_logreg_class": 20,
+  "logreg_historical_row_coverage": 0.793697
+}
