@@ -32,16 +32,18 @@ cp .env.example .env
 docker compose up --build
 ```
 
-- Internal test page: <http://localhost:3000>
-- API documentation: <http://localhost:8000/docs>
-- Health check: <http://localhost:8000/health>
+Local Docker Compose automatically applies `docker-compose.override.yml` and publishes the gateway on `127.0.0.1:3000`. Coolify explicitly loads only `docker-compose.yml`, which intentionally contains no host-port bindings.
 
-For a Docker server, set `NEXT_PUBLIC_API_BASE_URL` to the API URL reachable by the tester's browser and set `CORS_ORIGINS` to the test-page origin.
+- Internal test page: <http://localhost:3000>
+- API documentation through the web gateway: <http://localhost:3000/api/docs>
+- API health check through the web gateway: <http://localhost:3000/api/health>
+
+The Compose deployment does not bind host ports. Coolify should route the application domain to the `web` service on container port `3000`; that service forwards `/api/*` to the private `api` service. This avoids collisions with ports already used on the Docker host and keeps the API on the same browser origin.
 
 ## API
 
 ```bash
-curl -X POST http://localhost:8000/match-cv \
+curl -X POST http://localhost:3000/api/match-cv \
   -F 'cv_file=@/path/to/resume.pdf'
 ```
 

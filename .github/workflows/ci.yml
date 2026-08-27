@@ -17,6 +17,13 @@ jobs:
       - run: pip install -r api/requirements.txt
       - run: python -m compileall -q api scripts
       - run: python -m unittest discover -s tests
+      - name: Validate deployment entrypoint and private service ports
+        run: |
+          sh -n deploy/start-web.sh
+          if grep -Eq '^[[:space:]]+ports:' docker-compose.yml; then
+            echo "Coolify compose file must not bind Docker host ports"
+            exit 1
+          fi
       - name: Smoke-test both model paths from parsed CV features
         run: >-
           python -c "from api.cv_parser import parse_cv;
