@@ -16,11 +16,18 @@ jobs:
           cache: pip
       - run: pip install -r api/requirements.txt
       - run: python -m compileall -q api scripts
-      - name: Smoke-test typo-tolerant matching
+      - run: python -m unittest discover -s tests
+      - name: Smoke-test both model paths from parsed CV features
         run: >-
-          python -c "from api.matcher import TfidfEscoMatcher;
-          result=TfidfEscoMatcher().predict('warehous operatr',['inventory','packing'],1,3);
-          assert result['matches'][0]['esco_code']=='9333.8', result"
+          python -c "from api.cv_parser import parse_cv;
+          from api.matcher import TfidfEscoMatcher;
+          from api.minilm_matcher import MiniLmEscoMatcher;
+          cv=b'WORK EXPERIENCE\nSoftware Engineer\n2022 - Present\nSKILLS\nPython, SQL, software testing';
+          parsed=parse_cv('sample.txt',cv);
+          tf=TfidfEscoMatcher().predict(parsed.job_title,parsed.skills,parsed.work_length_years,3);
+          mini=MiniLmEscoMatcher().predict(parsed.job_title,parsed.skills,parsed.work_length_years,3);
+          assert tf['matches'][0]['esco_code']=='2512.4', tf;
+          assert mini['matches'][0]['esco_code']=='2512.4', mini"
       - uses: pnpm/action-setup@v4
         with:
           version: 11.19.0

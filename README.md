@@ -1,32 +1,29 @@
-# ReRouteHer ESCO Matcher — TF-IDF + Logistic Regression
+# ReRouteHer CV → ESCO technical feasibility test
 
-CPU-friendly service that receives a job title, skills, and optional work length, then returns ranked ESCO occupation codes plus clearly labelled MASCO candidates. It is designed for misspellings, partial wording, and common aliases without requiring a GPU.
+Internal comparison harness for the ReRouteHer CV-upload flow. A tester uploads one CV; the backend extracts the latest job title, skills, and role length, then runs the same features through both model paths:
 
-## What is included
+1. TF-IDF character/word features + Logistic Regression, with full-catalog retrieval fallback.
+2. `sentence-transformers/all-MiniLM-L6-v2` semantic retrieval.
 
-- Responsive Next.js/Vinext website
-- FastAPI prediction API and OpenAPI docs
-- Character `char_wb` 3–5 gram + word 1–2 gram TF-IDF
-- Multiclass Logistic Regression for well-supported JobHop labels
-- Full-catalog character/skill retrieval fallback when classifier confidence is low
-- Official ESCO–O*NET preferred titles and ESCO v1.2.1 occupation–skill matrix features
-- Quarter-derived role duration, resume totals, and duration-band features
-- Docker Compose deployment for the web and API services
+The page is intentionally plain. It exposes parser output, warnings, timing, and both top-three result tables for technical review.
 
-## Data coverage
+## Current flow
 
-| Measure | Result |
-| --- | ---: |
-| JobHop rows | 47,224 |
-| Resumes | 35,568 |
-| Distinct historical ESCO codes | 2,278 |
-| Rows linked to an official ESCO skill profile | 46,621 (98.7231%) |
-| Exact-linked historical ESCO codes | 2,242 |
-| Full ESCO retrieval catalog | 2,980 occupations |
-| Logistic Regression classes (`>=20` JobHop rows) | 438 |
-| Historical row coverage of classifier classes | 79.3697% |
+```text
+PDF / DOCX / TXT upload
+        ↓
+in-memory text extraction
+        ↓
+latest title + skills + latest-role duration
+        ↓
+┌────────────────────────────┬───────────────────────────┐
+│ TF-IDF + Logistic Regression│ all-MiniLM-L6-v2          │
+└────────────────────────────┴───────────────────────────┘
+        ↓
+two ranked ESCO result tables
+```
 
-Work length is an estimate because JobHop dates are quarter-granular. A same-quarter role is treated as 0.25 years. See [`data_quality_report.json`](data/processed/data_quality_report.json), [`DATA_SOURCES.md`](DATA_SOURCES.md), and the [`MODEL_CARD.md`](MODEL_CARD.md).
+The CV is not written to disk or a database. Uploads are limited to 10 MB and 50 PDF pages. Image-only/scanned PDFs require OCR before testing.
 
 ## Run with Docker
 
@@ -35,67 +32,84 @@ cp .env.example .env
 docker compose up --build
 ```
 
-- Website: <http://localhost:3000>
-- API docs: <http://localhost:8000/docs>
-- Health: <http://localhost:8000/health>
+- Internal test page: <http://localhost:3000>
+- API documentation: <http://localhost:8000/docs>
+- Health check: <http://localhost:8000/health>
 
-Set `NEXT_PUBLIC_API_BASE_URL` to the browser-accessible API URL on your server. Set `CORS_ORIGINS` to the deployed web origin. Do not use a Docker-internal hostname for `NEXT_PUBLIC_API_BASE_URL`; the request is made by the user's browser.
+For a Docker server, set `NEXT_PUBLIC_API_BASE_URL` to the API URL reachable by the tester's browser and set `CORS_ORIGINS` to the test-page origin.
 
-## API contract
+## API
 
 ```bash
-curl -X POST http://localhost:8000/match \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "job_title": "software craftsperson",
-    "skills": ["Python", "API design", "testing"],
-    "work_length_years": 3.5,
-    "top_k": 3
-  }'
+curl -X POST http://localhost:8000/match-cv \
+  -F 'cv_file=@/path/to/resume.pdf'
 ```
 
-The response returns `esco_code`, `esco_title`, `esco_uri`, ranking score, method, skill overlaps, duration fit, and an optional MASCO candidate. `masco_mapping_status=isco4_candidate_requires_validation` means exactly that: it is not an official crosswalk.
+The response contains:
+
+- file metadata and `stored: false`;
+- extracted title, skills, latest-role length, total non-overlapping experience, parser provenance, warnings, and a short text preview;
+- parsing and inference timings;
+- TF-IDF top-three results;
+- MiniLM top-three results;
+- tentative MASCO four-digit candidates labelled `isco4_candidate_requires_validation`.
+
+## CV feature extraction
+
+- Text: `pypdf` for text PDFs, `python-docx` for DOCX, and UTF-8/Latin-1 decoding for TXT.
+- Latest job title: experience-heading detection plus the most recent employment date range and nearby role-like line.
+- Skills: explicit skills sections/labelled lines plus exact phrases from official ESCO level-3 skill groups.
+- Latest-role length: months in the date range associated with the selected latest title. This is the duration sent to both models.
+- Total experience: union of non-overlapping employment ranges, reported for diagnosis but not used for ranking.
+
+CV layouts vary. The extracted-feature panel must be reviewed before treating model comparison results as meaningful. A parser warning is not a model result.
+
+## Data coverage
+
+| Measure | Result |
+| --- | ---: |
+| JobHop rows | 47,224 |
+| Resumes | 35,568 |
+| Historical JobHop ESCO codes | 2,278 |
+| Rows linked to official ESCO skill profiles | 46,621 (98.7231%) |
+| Searchable ESCO occupation profiles | 2,980 |
+| Logistic Regression classes (`>=20` JobHop rows) | 438 |
+| MiniLM embedding dimensions | 384 |
+
+Data construction uses the official ESCO–O*NET titles and ESCO v1.2.1 Skill–Occupation Matrix 3.0. See [`DATA_SOURCES.md`](DATA_SOURCES.md), [`MODEL_CARD.md`](MODEL_CARD.md), and [`data_quality_report.json`](data/processed/data_quality_report.json).
 
 ## Local development
 
 ```bash
 corepack enable
 pnpm install --frozen-lockfile
-pnpm run dev
-```
-
-Run the API separately:
-
-```bash
 python -m venv .venv
 .venv/bin/pip install -r api/requirements.txt
 .venv/bin/uvicorn api.app:app --reload --port 8000
+pnpm run dev
 ```
 
-## Rebuild data and model
-
-Processed data and the trained artifact are committed for reproducible deployment. To regenerate them from the archived project sources:
+Run checks:
 
 ```bash
-python scripts/build_dataset.py \
-  --jobhop ../JobHop_v2_2019plus_corrected_2026-08-27/jobhop_v2_confirmed_active_2019plus.csv \
-  --esco-crosswalk ../ReRouteHer_DataTeam_Fresh_HighStandard_2026-08-27/00_SOURCE_ARCHIVE/ESCO_to_ONET-SOC_official.xlsx \
-  --esco-matrix ../ReRouteHer_DataTeam_Fresh_HighStandard_2026-08-27/00_SOURCE_ARCHIVE/ESCO_v1.2.1_skills_occupations_matrix.xlsx \
-  --masco-catalog ../MASCO_remote_work/output/masco_2020_individual_occupations_en.csv \
-  --output-dir data/processed
-python scripts/train.py
+.venv/bin/python -m unittest discover -s tests -v
+.venv/bin/python -m compileall -q api scripts
+pnpm run lint
+pnpm run build
 ```
-
-The reported synthetic typo top-1/top-3 score checks robustness of the generated taxonomy examples only. It is not independent resume accuracy. Before production decisions, evaluate on a manually reviewed resume/title holdout and calibrate a reject/analyst-review threshold.
 
 ## Repository map
 
 ```text
-api/              FastAPI service and matcher
-app/              Interactive website
-data/processed/   Reproducible features, ESCO profiles, quality report
-model/            Deployable TF-IDF/Logistic Regression artifact
-scripts/          Source-to-feature and model training pipelines
+api/cv_parser.py      CV extraction and feature derivation
+api/matcher.py        TF-IDF/Logistic Regression model path
+api/minilm_matcher.py MiniLM semantic model path
+app/                  Plain internal comparison page
+model/                Both deployable model artifacts
+data/processed/       ESCO-linked JobHop features and quality report
+tests/                CV parser checks
 ```
 
-Code is MIT-licensed. Data terms are separate; keep the repository private until JobHop redistribution rights are confirmed.
+The separate [`rerouteher-esco-minilm`](https://github.com/CharlesYi-DEV/rerouteher-esco-minilm) repository remains the standalone semantic component. This repository is the single website and combined deployment target.
+
+Code is MIT-licensed. Keep the repository private until JobHop redistribution rights and CV-handling controls are formally approved.

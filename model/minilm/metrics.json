@@ -1,0 +1,8 @@
+{
+  "model": "sentence-transformers/all-MiniLM-L6-v2",
+  "embedding_dimensions": 384,
+  "indexed_esco_codes": 2980,
+  "normalization": "L2",
+  "ranking": "90% semantic cosine + 10% normalized-title similarity; optional 3% duration adjustment",
+  "evaluation_warning": "Index construction is not independent real-resume evaluation."
+}
