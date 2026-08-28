@@ -109,8 +109,11 @@ api/minilm_matcher.py MiniLM semantic model path
 app/                  Plain internal comparison page
 model/                Both deployable model artifacts
 data/processed/       ESCO-linked JobHop features and quality report
+database/             Complete PostgreSQL import without pgvector
 tests/                CV parser checks
 ```
+
+The generated database package is documented in [`database/README.md`](database/README.md).
 
 The separate [`rerouteher-esco-minilm`](https://github.com/CharlesYi-DEV/rerouteher-esco-minilm) repository remains the standalone semantic component. This repository is the single website and combined deployment target.
 
