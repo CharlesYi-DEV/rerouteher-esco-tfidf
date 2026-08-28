@@ -3,16 +3,16 @@
 import { FormEvent, useState } from 'react';
 
 type Match = {
-  esco_code: string;
-  esco_title: string;
-  masco_candidate_code?: string | null;
-  masco_mapping_status: string;
+  masco_code: string;
+  masco_code_printed: string;
+  masco_title: string;
+  source_parent_group_code: string;
   score: number;
   semantic_score?: number;
-  title_similarity?: number;
   method: string;
+  rank_scope: string;
   matched_skills: string[];
-  reference_work_length_median_years?: number | null;
+  requires_user_confirmation: boolean;
 };
 
 type ModelResult = {
@@ -37,6 +37,13 @@ type CvResult = {
     warnings: string[];
   };
   timings_ms: { parse: number; tfidf: number; minilm: number; total: number };
+  model_policy: {
+    taxonomy: string;
+    label_format: string;
+    resume_dataset: string;
+    human_confirmation_required: boolean;
+    automatic_employment_decision_use: boolean;
+  };
   tfidf: ModelResult;
   minilm: ModelResult;
 };
@@ -56,25 +63,23 @@ function ResultsTable({ title, result, elapsed }: { title: string; result: Model
           <thead>
             <tr>
               <th>Rank</th>
-              <th>ESCO code</th>
-              <th>Occupation</th>
+              <th>MASCO 6-digit code</th>
+              <th>MASCO occupation</th>
               <th>Score</th>
-              <th>MASCO candidate</th>
+              <th>4-digit parent (lineage only)</th>
+              <th>Ranking scope</th>
               <th>Matched skill evidence</th>
             </tr>
           </thead>
           <tbody>
             {result.matches.map((match, index) => (
-              <tr key={`${title}-${match.esco_code}`}>
+              <tr key={`${title}-${match.masco_code}`}>
                 <td>{index + 1}</td>
-                <td><code>{match.esco_code}</code></td>
-                <td>{match.esco_title}</td>
+                <td><code>{match.masco_code}</code><br /><small>{match.masco_code_printed}</small></td>
+                <td>{match.masco_title}</td>
                 <td>{match.score.toFixed(4)}</td>
-                <td>
-                  {match.masco_candidate_code
-                    ? <>{match.masco_candidate_code}<br /><small>requires validation</small></>
-                    : '—'}
-                </td>
+                <td><code>{match.source_parent_group_code}</code><br /><small>never used as the prediction</small></td>
+                <td>{match.rank_scope}</td>
                 <td>{match.matched_skills.length ? match.matched_skills.join('; ') : 'No direct phrase overlap'}</td>
               </tr>
             ))}
@@ -115,9 +120,9 @@ export default function Home() {
 
   return (
     <main>
-      <h1>ReRouteHer CV → ESCO technical feasibility test</h1>
+      <h1>ReRouteHer CV → 6-digit MASCO matching test</h1>
       <p className="intro">
-        Upload one CV. The server extracts the latest job title, skills, and employment length, then runs both models using the same extracted features.
+        Upload one CV. The server extracts the latest job title, skills, and employment length, then compares two JobHop-trained model paths. Every predicted role is an exact six-digit MASCO occupation—not a four-digit parent group.
       </p>
 
       <form onSubmit={submit}>
@@ -132,7 +137,7 @@ export default function Home() {
         <button type="submit" disabled={!file || loading}>{loading ? 'Running both models…' : 'Upload and compare'}</button>
       </form>
 
-      <p className="privacy-note">Internal test only. The API processes the upload in memory and does not save the CV.</p>
+      <p className="privacy-note">Internal research test only. The API processes the upload in memory and does not save the CV. Suggestions require human confirmation and must not be used as automatic employment decisions.</p>
       {error && <div className="error" role="alert"><strong>Test failed:</strong> {error}</div>}
 
       {result && (
@@ -165,8 +170,15 @@ export default function Home() {
             </details>
           </section>
 
-          <ResultsTable title="1. TF-IDF + Logistic Regression" result={result.tfidf} elapsed={result.timings_ms.tfidf} />
-          <ResultsTable title="2. all-MiniLM-L6-v2 embeddings" result={result.minilm} elapsed={result.timings_ms.minilm} />
+          <section className="policy-section">
+            <h2>Model scope</h2>
+            <p>
+              Resume data: <strong>{result.model_policy.resume_dataset}</strong>. MASCO 2020 is used as the occupational reference catalog. Codes such as <code>251201</code> are stored predictions; forms such as <code>2512-01</code> are display-only.
+            </p>
+          </section>
+
+          <ResultsTable title="1. JobHop TF-IDF + Logistic Regression" result={result.tfidf} elapsed={result.timings_ms.tfidf} />
+          <ResultsTable title="2. JobHop MiniLM class-centroid benchmark" result={result.minilm} elapsed={result.timings_ms.minilm} />
         </div>
       )}
     </main>

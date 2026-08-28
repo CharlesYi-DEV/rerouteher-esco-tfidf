@@ -1,0 +1,79 @@
+{
+  "task": "D12 six-digit MASCO occupation classifier",
+  "resume_dataset_policy": "JobHop v2 confirmed-active 2019+ is the sole resume/career-history dataset.",
+  "jobhop_source_sha256": "423bb1410db68feec2c5196297ee13277781dce1754de6e2d7c0daac1f4f53d4",
+  "label_rule": "Every model class, catalog key, and prediction is exactly six digits.",
+  "training_examples": 562,
+  "split_counts": {
+    "train": 455,
+    "val": 62,
+    "test": 45
+  },
+  "class_count": 19,
+  "catalog_size": 258,
+  "selected_C": 0.5,
+  "grid_results": [
+    {
+      "C": 0.5,
+      "validation_accuracy": 0.1935483870967742,
+      "validation_macro_f1": 0.15247208931419456,
+      "validation_top3_accuracy": 0.41935483870967744
+    },
+    {
+      "C": 1.0,
+      "validation_accuracy": 0.14516129032258066,
+      "validation_macro_f1": 0.11248313090418356,
+      "validation_top3_accuracy": 0.41935483870967744
+    },
+    {
+      "C": 2.0,
+      "validation_accuracy": 0.14516129032258066,
+      "validation_macro_f1": 0.11532736269578374,
+      "validation_top3_accuracy": 0.46774193548387094
+    },
+    {
+      "C": 4.0,
+      "validation_accuracy": 0.1935483870967742,
+      "validation_macro_f1": 0.1377610693400167,
+      "validation_top3_accuracy": 0.4838709677419355
+    }
+  ],
+  "low_confidence_threshold": 0.05,
+  "validation": {
+    "n_examples": 62,
+    "accuracy": 0.1935483870967742,
+    "macro_f1": 0.15247208931419456,
+    "top3_accuracy": 0.41935483870967744
+  },
+  "test": {
+    "n_examples": 45,
+    "accuracy": 0.2,
+    "macro_f1": 0.11883876357560567,
+    "top3_accuracy": 0.37777777777777777
+  },
+  "minilm_centroid_benchmark": {
+    "val": {
+      "n_examples": 62,
+      "accuracy": 0.25806451612903225,
+      "macro_f1": 0.15671988829883565
+    },
+    "test": {
+      "n_examples": 45,
+      "accuracy": 0.24444444444444444,
+      "macro_f1": 0.1445151339888182
+    }
+  },
+  "selected_research_model": "minilm_centroid_retrieval",
+  "selection_metric": "validation macro-F1",
+  "scikit_learn_version": "1.7.2",
+  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "raw_resume_text_available": false,
+  "deployment_input_adapter": "The API converts extracted title, skills, and duration into the D12 structured JobHop history-text format.",
+  "production_approved": false,
+  "human_confirmation_required": true,
+  "production_blockers": [
+    "JobHop contains structured Belgian/Flemish career histories rather than raw Malaysian CV text.",
+    "The project ESCO-to-six-digit-MASCO crosswalk requires domain-owner review.",
+    "Sparse granular labels are merged to six-digit curated anchors."
+  ]
+}

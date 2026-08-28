@@ -1,1 +1,1 @@
-"""ReRouteHer ESCO TF-IDF service."""
+"""ReRouteHer six-digit MASCO matching service."""

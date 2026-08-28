@@ -1,11 +1,15 @@
-# ReRouteHer CV → ESCO technical feasibility test
+# ReRouteHer CV → six-digit MASCO matching test
 
-Internal comparison harness for the ReRouteHer CV-upload flow. A tester uploads one CV; the backend extracts the latest job title, skills, and role length, then runs the same features through both model paths:
+Internal comparison harness for the ReRouteHer CV-upload flow. A tester uploads
+one CV; the backend extracts the latest job title, skills, and role length, then
+runs the same features through two JobHop-trained six-digit MASCO model paths:
 
-1. TF-IDF character/word features + Logistic Regression, with full-catalog retrieval fallback.
-2. `sentence-transformers/all-MiniLM-L6-v2` semantic retrieval.
+1. word + character `char_wb` TF-IDF with balanced Logistic Regression;
+2. `sentence-transformers/all-MiniLM-L6-v2` JobHop class-centroid retrieval.
 
-The page is intentionally plain. It exposes parser output, warnings, timing, and both top-three result tables for technical review.
+Every returned `masco_code` contains exactly six digits, for example `251201`.
+The official printed form (`2512-01`) is display-only. Four-digit codes are
+retained only as parent-group lineage and are never predictions.
 
 ## Current flow
 
@@ -16,14 +20,53 @@ in-memory text extraction
         ↓
 latest title + skills + latest-role duration
         ↓
-┌────────────────────────────┬───────────────────────────┐
-│ TF-IDF + Logistic Regression│ all-MiniLM-L6-v2          │
-└────────────────────────────┴───────────────────────────┘
+JobHop-compatible structured feature text
         ↓
-two ranked ESCO result tables
+┌──────────────────────────────┬─────────────────────────────┐
+│ TF-IDF + Logistic Regression │ MiniLM class-centroid model │
+└──────────────────────────────┴─────────────────────────────┘
+        ↓
+two ranked six-digit MASCO suggestion tables
 ```
 
-The CV is not written to disk or a database. Uploads are limited to 10 MB and 50 PDF pages. Image-only/scanned PDFs require OCR before testing.
+The CV is not written to disk or a database. Uploads are limited to 10 MB and
+50 PDF pages. Image-only/scanned PDFs require OCR before testing. All model
+outputs require user confirmation and must not be used as automatic employment
+decisions.
+
+## Resume-data scope
+
+JobHop v2 confirmed-active 2019+ is the only resume/career-history dataset used
+for training. The exact approved raw file is pinned in the artifact with
+SHA-256:
+
+```text
+423bb1410db68feec2c5196297ee13277781dce1754de6e2d7c0daac1f4f53d4
+```
+
+MASCO 2020 supplies six-digit occupation codes, titles, descriptions, and task
+text. ESCO supplies occupational reference titles and skill groups used while
+constructing the JobHop examples. Neither taxonomy is an additional resume
+dataset.
+
+## Model coverage and evaluation
+
+| Measure | Result |
+| --- | ---: |
+| JobHop-derived transition examples | 562 |
+| Preserved train / validation / test split | 455 / 62 / 45 |
+| Pre-merge granular labels | 41 |
+| Trainable six-digit classes after sparse-label policy | 19 |
+| Full six-digit MASCO catalog | 258 |
+| TF-IDF validation accuracy / macro-F1 | 19.35% / 15.25% |
+| TF-IDF test accuracy / macro-F1 | 20.00% / 11.88% |
+| MiniLM validation accuracy / macro-F1 | 25.81% / 15.67% |
+| MiniLM test accuracy / macro-F1 | 24.44% / 14.45% |
+
+MiniLM remains the research benchmark winner on validation macro-F1. These are
+prototype results, not production approval. The JobHop inputs contain
+structured Belgian/Flemish career histories rather than raw Malaysian CV text,
+and the project ESCO-to-MASCO crosswalk still requires domain-owner review.
 
 ## Run with Docker
 
@@ -32,13 +75,13 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Local Docker Compose automatically applies `docker-compose.override.yml` and publishes the gateway on `127.0.0.1:3000`. Coolify explicitly loads only `docker-compose.yml`, which intentionally contains no host-port bindings.
+Local Docker Compose publishes the gateway on `127.0.0.1:3000`. Coolify should
+route the application domain to the `web` service on container port `3000`;
+that service forwards `/api/*` to the private `api` service.
 
-- Internal test page: <http://localhost:3000>
-- API documentation through the web gateway: <http://localhost:3000/api/docs>
-- API health check through the web gateway: <http://localhost:3000/api/health>
-
-The Compose deployment does not bind host ports. Coolify should route the application domain to the `web` service on container port `3000`; that service forwards `/api/*` to the private `api` service. This avoids collisions with ports already used on the Docker host and keeps the API on the same browser origin.
+- Test page: <http://localhost:3000>
+- API documentation: <http://localhost:3000/api/docs>
+- API health: <http://localhost:3000/api/health>
 
 ## API
 
@@ -47,51 +90,27 @@ curl -X POST http://localhost:3000/api/match-cv \
   -F 'cv_file=@/path/to/resume.pdf'
 ```
 
-The response contains:
+The response includes file metadata, extracted CV features, inference timings,
+the JobHop-only model policy, and TF-IDF/MiniLM top-three MASCO suggestions.
+Each match contains the stored six-digit code, printed hyphen form, MASCO title,
+four-digit parent lineage, score, ranking scope, and confirmation requirement.
 
-- file metadata and `stored: false`;
-- extracted title, skills, latest-role length, total non-overlapping experience, parser provenance, warnings, and a short text preview;
-- parsing and inference timings;
-- TF-IDF top-three results;
-- MiniLM top-three results;
-- tentative MASCO four-digit candidates labelled `isco4_candidate_requires_validation`.
+## Retrain
 
-## CV feature extraction
-
-- Text: `pypdf` for text PDFs, `python-docx` for DOCX, and UTF-8/Latin-1 decoding for TXT.
-- Latest job title: experience-heading detection plus the most recent employment date range and nearby role-like line.
-- Skills: explicit skills sections/labelled lines plus exact phrases from official ESCO level-3 skill groups.
-- Latest-role length: months in the date range associated with the selected latest title. This is the duration sent to both models.
-- Total experience: union of non-overlapping employment ranges, reported for diagnosis but not used for ranking.
-
-CV layouts vary. The extracted-feature panel must be reviewed before treating model comparison results as meaningful. A parser warning is not a model result.
-
-## Data coverage
-
-| Measure | Result |
-| --- | ---: |
-| JobHop rows | 47,224 |
-| Resumes | 35,568 |
-| Historical JobHop ESCO codes | 2,278 |
-| Rows linked to official ESCO skill profiles | 46,621 (98.7231%) |
-| Searchable ESCO occupation profiles | 2,980 |
-| Logistic Regression classes (`>=20` JobHop rows) | 438 |
-| MiniLM embedding dimensions | 384 |
-
-Data construction uses the official ESCO–O*NET titles and ESCO v1.2.1 Skill–Occupation Matrix 3.0. See [`DATA_SOURCES.md`](DATA_SOURCES.md), [`MODEL_CARD.md`](MODEL_CARD.md), and [`data_quality_report.json`](data/processed/data_quality_report.json).
-
-## Local development
+The deployable artifact is rebuilt with the service's own scikit-learn and
+MiniLM runtime:
 
 ```bash
-corepack enable
-pnpm install --frozen-lockfile
-python -m venv .venv
-.venv/bin/pip install -r api/requirements.txt
-.venv/bin/uvicorn api.app:app --reload --port 8000
-pnpm run dev
+.venv/bin/python scripts/train_masco.py \
+  --jobhop-source /path/to/jobhop_v2_confirmed_active_2019plus.csv \
+  --local-files-only
 ```
 
-Run checks:
+Training fails if the raw JobHop SHA-256 changes, any label is not six digits,
+the D11 catalog is not 258 unique codes, or a model class is absent from the
+catalog.
+
+## Checks
 
 ```bash
 .venv/bin/python -m unittest discover -s tests -v
@@ -103,18 +122,17 @@ pnpm run build
 ## Repository map
 
 ```text
-api/cv_parser.py      CV extraction and feature derivation
-api/matcher.py        TF-IDF/Logistic Regression model path
-api/minilm_matcher.py MiniLM semantic model path
-app/                  Plain internal comparison page
-model/                Both deployable model artifacts
-data/processed/       ESCO-linked JobHop features and quality report
-database/             Complete PostgreSQL import without pgvector
-tests/                CV parser checks
+api/cv_parser.py          CV extraction and feature derivation
+api/masco_matcher.py      Six-digit TF-IDF and MiniLM inference
+app/                      Internal comparison page
+scripts/train_masco.py    JobHop-only reproducible retraining
+data/masco/               D12 examples and 258-role catalog
+model/masco/              Deployable artifact and metrics
+tests/                    Parser and six-digit contract checks
 ```
 
-The generated database package is documented in [`database/README.md`](database/README.md).
+See [`DATA_SOURCES.md`](DATA_SOURCES.md) and [`MODEL_CARD.md`](MODEL_CARD.md)
+for provenance, limits, and safe-use guidance.
 
-The separate [`rerouteher-esco-minilm`](https://github.com/CharlesYi-DEV/rerouteher-esco-minilm) repository remains the standalone semantic component. This repository is the single website and combined deployment target.
-
-Code is MIT-licensed. Keep the repository private until JobHop redistribution rights and CV-handling controls are formally approved.
+Code is MIT-licensed. Keep the repository private until JobHop redistribution
+rights and CV-handling controls are formally approved.

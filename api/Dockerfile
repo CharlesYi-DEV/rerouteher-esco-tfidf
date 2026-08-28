@@ -15,7 +15,7 @@ RUN useradd --create-home --uid 10001 appuser && \
 USER appuser
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
 COPY --chown=appuser:appuser api /app/api
-COPY --chown=appuser:appuser model /app/model
+COPY --chown=appuser:appuser model/masco /app/model/masco
 
 EXPOSE 8000
 CMD ["uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8000"]

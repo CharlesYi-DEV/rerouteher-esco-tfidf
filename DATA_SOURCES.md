@@ -1,14 +1,18 @@
 # Data sources and reuse notes
 
-The code is MIT-licensed. The data keeps the terms of its original sources.
+The code is MIT-licensed. The data retains the terms of its original sources.
 
 | Asset | Use in this project | Source / status |
 | --- | --- | --- |
-| JobHop v2 2019+ | Historical occupation codes and quarter-level work history | Project-provided processed resume dataset. Confirm redistribution rights before making this repository public. |
-| ESCO–O*NET official crosswalk | ESCO codes and preferred occupation titles | European Commission ESCO crosswalk and [technical report](https://esco.ec.europa.eu/system/files/2022-12/ONET%20ESCO%20Technical%20Report.pdf). |
-| ESCO v1.2.1 Skill–Occupation Matrix 3.0 | Weighted level-3 skill groups linked to occupation URIs | European Commission [matrix publication](https://esco.ec.europa.eu/en/about-esco/publications/publication/skills-occupations-matrix-tables). |
-| MASCO 2020 occupation catalog | Label lookup for a tentative four-digit candidate | Department of Statistics Malaysia source archived by the project. No official ESCO-to-MASCO crosswalk was available. |
+| JobHop v2 confirmed-active 2019+ | Sole resume/career-history source for 562 D12 transition examples | Project-provided processed dataset. Raw SHA-256 is pinned in the model. Confirm redistribution rights before making the repository public. |
+| MASCO 2020 official catalog | Exact six-digit codes, printed code forms, occupation titles, descriptions, and task text for the 258-role D11 catalog | Department of Statistics Malaysia official PDF archived by the project. Occupational reference data only. |
+| ESCO–O*NET official crosswalk | ESCO occupation titles used to interpret JobHop codes while constructing structured examples | European Commission ESCO crosswalk and [technical report](https://esco.ec.europa.eu/system/files/2022-12/ONET%20ESCO%20Technical%20Report.pdf). Occupational reference data only. |
+| ESCO v1.2.1 Skill–Occupation Matrix 3.0 | Top skill groups used to describe prior JobHop occupation records | European Commission [matrix publication](https://esco.ec.europa.eu/en/about-esco/publications/publication/skills-occupations-matrix-tables). Occupational reference data only. |
 
-Unless a source says otherwise, EU-owned ESCO content is reusable under CC BY 4.0; see the [ESCO copyright notice](https://esco.ec.europa.eu/uk/node/456).
+No other resume dataset is used. ESCO and MASCO are taxonomies/reference
+sources and must not be counted as resume datasets.
 
-The `masco_candidate_code` is only the first four digits of the ISCO/ESCO code when that value exists in the local MASCO catalog. Every such record is labelled `isco4_candidate_requires_validation`. Do not present it as a verified MASCO mapping.
+The ESCO-to-six-digit-MASCO label crosswalk is a curated project mapping, not an
+official published crosswalk. It requires domain-owner confirmation before any
+production decision. Four-digit MASCO group codes appear only for source
+lineage; all deployed role labels and predictions match `^\d{6}$`.
