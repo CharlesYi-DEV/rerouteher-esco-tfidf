@@ -25,16 +25,29 @@ jobs:
             exit 1
           fi
       - name: Smoke-test both model paths from parsed CV features
-        run: >-
-          python -c "from api.cv_parser import parse_cv;
-          from api.matcher import TfidfEscoMatcher;
-          from api.minilm_matcher import MiniLmEscoMatcher;
-          cv=b'WORK EXPERIENCE\nSoftware Engineer\n2022 - Present\nSKILLS\nPython, SQL, software testing';
-          parsed=parse_cv('sample.txt',cv);
-          tf=TfidfEscoMatcher().predict(parsed.job_title,parsed.skills,parsed.work_length_years,3);
-          mini=MiniLmEscoMatcher().predict(parsed.job_title,parsed.skills,parsed.work_length_years,3);
-          assert tf['matches'][0]['esco_code']=='2512.4', tf;
-          assert mini['matches'][0]['esco_code']=='2512.4', mini"
+        run: |
+          python - <<'PY'
+          import re
+          import numpy as np
+          from api.cv_parser import parse_cv
+          from api.masco_matcher import GranularMascoMatcher
+
+          class DummyEncoder:
+              def encode(self, texts, **kwargs):
+                  vectors = np.ones((len(texts), 384), dtype=float)
+                  return vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+
+          cv = b'WORK EXPERIENCE\nSoftware Engineer\n2022 - Present\nSKILLS\nPython, SQL, software testing'
+          parsed = parse_cv('sample.txt', cv)
+          matcher = GranularMascoMatcher(encoder=DummyEncoder())
+          results = [
+              matcher.predict_tfidf(parsed.job_title, parsed.skills, parsed.work_length_years, 3),
+              matcher.predict_minilm(parsed.job_title, parsed.skills, parsed.work_length_years, 3),
+          ]
+          for result in results:
+              assert len(result['matches']) == 3, result
+              assert all(re.fullmatch(r'\d{6}', item['masco_code']) for item in result['matches']), result
+          PY
       - uses: pnpm/action-setup@v4
         with:
           version: 11.19.0
