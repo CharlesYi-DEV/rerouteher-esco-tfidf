@@ -28,16 +28,41 @@ class GranularMascoMatcherTests(unittest.TestCase):
                 match["masco_code"], match["masco_code_printed"].replace("-", "")
             )
             self.assertTrue(match["requires_user_confirmation"])
+            self.assertIn("esco_comparisons", match)
+            for comparison in match["esco_comparisons"]:
+                self.assertRegex(comparison["esco_code"], r"^\d{4}(?:\.\d+)+$")
+                self.assertEqual(
+                    comparison["crosswalk_authority"],
+                    "project crosswalk; not an official ESCO-to-MASCO publication",
+                )
+                self.assertEqual(
+                    comparison["review_status"], "pending domain-owner review"
+                )
+            if match["esco_comparisons"]:
+                self.assertEqual(
+                    match["esco_code"], match["esco_comparisons"][0]["esco_code"]
+                )
+                self.assertEqual(
+                    match["esco_title"], match["esco_comparisons"][0]["esco_title"]
+                )
 
     def test_artifact_is_jobhop_only_and_catalog_is_granular(self) -> None:
+        self.assertEqual(self.matcher.artifact["format_version"], 4)
         self.assertEqual(
             self.matcher.artifact["resume_dataset"],
             "JobHop v2 confirmed active 2019+ only",
         )
         self.assertEqual(len(self.matcher.catalog), 258)
         self.assertEqual(len(self.matcher.classes), 19)
+        self.assertEqual(len(self.matcher.esco_comparisons_by_masco), 41)
         self.assertTrue(
             all(re.fullmatch(r"\d{6}", code) for code in self.matcher.classes)
+        )
+        self.assertTrue(
+            all(
+                self.matcher.esco_comparisons_by_masco.get(code)
+                for code in self.matcher.classes
+            )
         )
 
     def test_tfidf_predictions_use_only_six_digit_masco_codes(self) -> None:

@@ -9,6 +9,12 @@ test examples.
 `masco_code` is exactly six digits; `masco_code_printed` retains the official
 hyphen form for display, and `source_parent_group_code` is lineage only.
 
+`D12_esco_to_masco_label_crosswalk.csv` retains 70 project-curated ESCO
+code/title comparisons linked to 41 six-digit MASCO roles. The retrained
+artifact embeds these comparisons so the API and UI do not drop ESCO. This is
+not an official ESCO-to-MASCO publication and remains pending domain-owner
+review.
+
 The retraining script requires the approved raw JobHop file and verifies its
 SHA-256 before fitting:
 

@@ -12,6 +12,17 @@ type Match = {
   method: string;
   rank_scope: string;
   matched_skills: string[];
+  esco_code?: string | null;
+  esco_title?: string | null;
+  esco_comparisons: {
+    esco_code: string;
+    esco_title: string;
+    jobhop_examples: number;
+    crosswalk_method: string;
+    crosswalk_authority: string;
+    review_status: string;
+  }[];
+  esco_comparison_status: string;
   requires_user_confirmation: boolean;
 };
 
@@ -41,6 +52,7 @@ type CvResult = {
     taxonomy: string;
     label_format: string;
     resume_dataset: string;
+    esco_comparison: string;
     human_confirmation_required: boolean;
     automatic_employment_decision_use: boolean;
   };
@@ -65,6 +77,7 @@ function ResultsTable({ title, result, elapsed }: { title: string; result: Model
               <th>Rank</th>
               <th>MASCO 6-digit code</th>
               <th>MASCO occupation</th>
+              <th>ESCO comparison</th>
               <th>Score</th>
               <th>4-digit parent (lineage only)</th>
               <th>Ranking scope</th>
@@ -77,6 +90,29 @@ function ResultsTable({ title, result, elapsed }: { title: string; result: Model
                 <td>{index + 1}</td>
                 <td><code>{match.masco_code}</code><br /><small>{match.masco_code_printed}</small></td>
                 <td>{match.masco_title}</td>
+                <td>
+                  {match.esco_comparisons.length ? (
+                    <>
+                      <code>{match.esco_comparisons[0].esco_code}</code><br />
+                      {match.esco_comparisons[0].esco_title}
+                      {match.esco_comparisons.length > 1 && (
+                        <details>
+                          <summary>{match.esco_comparisons.length - 1} more linked ESCO role{match.esco_comparisons.length > 2 ? 's' : ''}</summary>
+                          <ul>
+                            {match.esco_comparisons.slice(1).map((comparison) => (
+                              <li key={`${match.masco_code}-${comparison.esco_code}`}>
+                                <code>{comparison.esco_code}</code> {comparison.esco_title}
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
+                      <small>project crosswalk; comparison only</small>
+                    </>
+                  ) : (
+                    <small>No project ESCO comparison mapped</small>
+                  )}
+                </td>
                 <td>{match.score.toFixed(4)}</td>
                 <td><code>{match.source_parent_group_code}</code><br /><small>never used as the prediction</small></td>
                 <td>{match.rank_scope}</td>
@@ -122,7 +158,7 @@ export default function Home() {
     <main>
       <h1>ReRouteHer CV → 6-digit MASCO matching test</h1>
       <p className="intro">
-        Upload one CV. The server extracts the latest job title, skills, and employment length, then compares two JobHop-trained model paths. Every predicted role is an exact six-digit MASCO occupation—not a four-digit parent group.
+        Upload one CV. The server extracts the latest job title, skills, and employment length, then compares two JobHop-trained model paths. Every predicted role is an exact six-digit MASCO occupation—not a four-digit parent group. ESCO codes remain visible alongside each result for comparison.
       </p>
 
       <form onSubmit={submit}>
@@ -174,6 +210,9 @@ export default function Home() {
             <h2>Model scope</h2>
             <p>
               Resume data: <strong>{result.model_policy.resume_dataset}</strong>. MASCO 2020 is used as the occupational reference catalog. Codes such as <code>251201</code> are stored predictions; forms such as <code>2512-01</code> are display-only.
+            </p>
+            <p>
+              ESCO comparison: {result.model_policy.esco_comparison}. ESCO is not the model&apos;s predicted label.
             </p>
           </section>
 

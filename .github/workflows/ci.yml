@@ -47,6 +47,11 @@ jobs:
           for result in results:
               assert len(result['matches']) == 3, result
               assert all(re.fullmatch(r'\d{6}', item['masco_code']) for item in result['matches']), result
+              for item in result['matches']:
+                  assert item['esco_comparisons'], item
+                  assert item['esco_code'] == item['esco_comparisons'][0]['esco_code'], item
+                  assert re.fullmatch(r'\d{4}(?:\.\d+)+', item['esco_code']), item
+                  assert item['esco_comparisons'][0]['review_status'] == 'pending domain-owner review', item
           PY
       - uses: pnpm/action-setup@v4
         with:

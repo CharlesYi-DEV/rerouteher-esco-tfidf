@@ -74,6 +74,9 @@ class GranularMascoMatcher:
         self.fallback_catalog_matrix = self.artifact["fallback_catalog_matrix"]
         self.catalog: list[dict[str, Any]] = self.artifact["catalog"]
         self.catalog_by_code = {row["masco_code"]: row for row in self.catalog}
+        self.esco_comparisons_by_masco: dict[str, list[dict[str, Any]]] = (
+            self.artifact["esco_comparisons_by_masco"]
+        )
         self.classes = [str(code) for code in self.artifact["classes"]]
         self.low_confidence_threshold = float(
             self.artifact["low_confidence_threshold"]
@@ -99,6 +102,7 @@ class GranularMascoMatcher:
             "fallback_vectorizer",
             "fallback_catalog_matrix",
             "catalog",
+            "esco_comparisons_by_masco",
             "classes",
             "embedding_model",
             "embedding_class_centroids",
@@ -121,6 +125,9 @@ class GranularMascoMatcher:
             raise ValueError("Every MASCO catalog key and model class must be six digits.")
         if not set(classes).issubset(codes):
             raise ValueError("A trained six-digit class is missing from the MASCO catalog.")
+        comparison_codes = set(self.artifact["esco_comparisons_by_masco"])
+        if not comparison_codes.issubset(codes):
+            raise ValueError("An ESCO comparison references an unknown MASCO catalog role.")
 
     @staticmethod
     def _matched_skills(
@@ -147,6 +154,8 @@ class GranularMascoMatcher:
         if not LABEL_PATTERN.fullmatch(code):
             raise ValueError(f"Model emitted a non-six-digit MASCO code: {code!r}")
         profile = self.catalog_by_code[code]
+        comparisons = self.esco_comparisons_by_masco.get(code, [])
+        primary_comparison = comparisons[0] if comparisons else None
         result = {
             "masco_code": code,
             "masco_code_printed": profile["masco_code_printed"],
@@ -156,6 +165,18 @@ class GranularMascoMatcher:
             "method": method,
             "rank_scope": rank_scope,
             "matched_skills": self._matched_skills(query_skills, profile),
+            "esco_code": (
+                primary_comparison["esco_code"] if primary_comparison else None
+            ),
+            "esco_title": (
+                primary_comparison["esco_title"] if primary_comparison else None
+            ),
+            "esco_comparisons": comparisons,
+            "esco_comparison_status": (
+                "project_crosswalk_pending_domain_owner_review"
+                if comparisons
+                else "no_project_comparison_mapping"
+            ),
             "requires_user_confirmation": True,
         }
         if semantic_score is not None:

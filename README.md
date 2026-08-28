@@ -11,6 +11,10 @@ Every returned `masco_code` contains exactly six digits, for example `251201`.
 The official printed form (`2512-01`) is display-only. Four-digit codes are
 retained only as parent-group lineage and are never predictions.
 
+ESCO codes and titles are also retained beside each MASCO result for
+comparison. They come from the project ESCO-to-MASCO crosswalk, are marked as
+pending domain-owner review, and are never presented as the predicted label.
+
 ## Current flow
 
 ```text
@@ -27,6 +31,8 @@ JobHop-compatible structured feature text
 └──────────────────────────────┴─────────────────────────────┘
         ↓
 two ranked six-digit MASCO suggestion tables
+        ↓
+linked ESCO codes/titles shown as comparison metadata
 ```
 
 The CV is not written to disk or a database. Uploads are limited to 10 MB and
@@ -93,7 +99,8 @@ curl -X POST http://localhost:3000/api/match-cv \
 The response includes file metadata, extracted CV features, inference timings,
 the JobHop-only model policy, and TF-IDF/MiniLM top-three MASCO suggestions.
 Each match contains the stored six-digit code, printed hyphen form, MASCO title,
-four-digit parent lineage, score, ranking scope, and confirmation requirement.
+four-digit parent lineage, linked ESCO comparison entries, score, ranking scope,
+and confirmation requirement.
 
 ## Retrain
 
@@ -108,7 +115,8 @@ MiniLM runtime:
 
 Training fails if the raw JobHop SHA-256 changes, any label is not six digits,
 the D11 catalog is not 258 unique codes, or a model class is absent from the
-catalog.
+catalog. The project ESCO comparison crosswalk is also validated and embedded
+in the artifact.
 
 ## Checks
 
@@ -126,7 +134,7 @@ api/cv_parser.py          CV extraction and feature derivation
 api/masco_matcher.py      Six-digit TF-IDF and MiniLM inference
 app/                      Internal comparison page
 scripts/train_masco.py    JobHop-only reproducible retraining
-data/masco/               D12 examples and 258-role catalog
+data/masco/               D12 examples, 258-role catalog, and ESCO comparison crosswalk
 model/masco/              Deployable artifact and metrics
 tests/                    Parser and six-digit contract checks
 ```

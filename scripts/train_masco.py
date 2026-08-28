@@ -27,6 +27,7 @@ from sklearn.pipeline import FeatureUnion, Pipeline
 
 
 LABEL_PATTERN = re.compile(r"^\d{6}$")
+ESCO_PATTERN = re.compile(r"^\d{4}(?:\.\d+)+$")
 EXPECTED_JOBHOP_SHA256 = "423bb1410db68feec2c5196297ee13277781dce1754de6e2d7c0daac1f4f53d4"
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 RANDOM_STATE = 42
@@ -43,6 +44,15 @@ def parse_args() -> argparse.Namespace:
         "--catalog",
         type=Path,
         default=Path("data/masco/D12_granular_catalog.csv"),
+    )
+    parser.add_argument(
+        "--esco-crosswalk",
+        type=Path,
+        default=Path("data/masco/D12_esco_to_masco_label_crosswalk.csv"),
+        help=(
+            "Project ESCO-to-MASCO comparison crosswalk. ESCO is retained as "
+            "comparison metadata and is never used as the prediction label."
+        ),
     )
     parser.add_argument("--jobhop-source", type=Path, required=True)
     parser.add_argument(
@@ -195,6 +205,7 @@ def main() -> None:
     args = parse_args()
     examples = read_rows(args.examples)
     catalog_rows = read_rows(args.catalog)
+    crosswalk_rows = read_rows(args.esco_crosswalk)
     source_hash = validate_inputs(examples, catalog_rows, args.jobhop_source)
 
     train_texts, train_labels = split_rows(examples, "train")
@@ -236,6 +247,43 @@ def main() -> None:
                 "profile_text": row["profile_text"],
             }
         )
+
+    catalog_codes = {row["masco_code"] for row in catalog}
+    comparison_index: dict[str, dict[str, dict[str, Any]]] = {}
+    for row in crosswalk_rows:
+        esco_code = row["target_esco_code"].strip()
+        if not ESCO_PATTERN.fullmatch(esco_code):
+            raise ValueError(f"Invalid ESCO comparison code: {esco_code!r}")
+        related_masco_codes = {
+            row["premerge_masco_code"].strip(),
+            row["masco_code"].strip(),
+        }
+        if not all(LABEL_PATTERN.fullmatch(code) for code in related_masco_codes):
+            raise ValueError("Every MASCO code in the ESCO comparison crosswalk must be six digits.")
+        if not related_masco_codes.issubset(catalog_codes):
+            raise ValueError("An ESCO comparison references a MASCO role outside the D11 catalog.")
+        for masco_code in related_masco_codes:
+            comparisons = comparison_index.setdefault(masco_code, {})
+            comparison = comparisons.setdefault(
+                esco_code,
+                {
+                    "esco_code": esco_code,
+                    "esco_title": row["target_esco_title"].strip(),
+                    "jobhop_examples": 0,
+                    "crosswalk_method": row["crosswalk_method"].strip(),
+                    "crosswalk_authority": row["crosswalk_authority"].strip(),
+                    "review_status": row["review_status"].strip(),
+                },
+            )
+            comparison["jobhop_examples"] += int(row["total_examples"])
+
+    esco_comparisons_by_masco = {
+        masco_code: sorted(
+            comparisons.values(),
+            key=lambda item: (-int(item["jobhop_examples"]), item["esco_code"]),
+        )
+        for masco_code, comparisons in comparison_index.items()
+    }
     fallback_vectorizer = TfidfVectorizer(
         lowercase=True,
         strip_accents="unicode",
@@ -312,6 +360,12 @@ def main() -> None:
         },
         "class_count": len(classes),
         "catalog_size": len(catalog),
+        "esco_comparison_crosswalk_rows": len(crosswalk_rows),
+        "masco_roles_with_esco_comparisons": len(esco_comparisons_by_masco),
+        "esco_comparison_policy": (
+            "ESCO codes and titles are retained as project-crosswalk comparison metadata; "
+            "the predicted label remains an exact six-digit MASCO code."
+        ),
         "selected_C": selected_c,
         "grid_results": grid_results,
         "low_confidence_threshold": low_confidence_threshold,
@@ -336,7 +390,7 @@ def main() -> None:
         ],
     }
     artifact = {
-        "format_version": 3,
+        "format_version": 4,
         "task": metrics["task"],
         "label_regex": r"^\d{6}$",
         "resume_dataset": "JobHop v2 confirmed active 2019+ only",
@@ -345,6 +399,7 @@ def main() -> None:
         "fallback_vectorizer": fallback_vectorizer,
         "fallback_catalog_matrix": fallback_matrix,
         "catalog": catalog,
+        "esco_comparisons_by_masco": esco_comparisons_by_masco,
         "classes": classes,
         "low_confidence_threshold": low_confidence_threshold,
         "embedding_model": MODEL_NAME,

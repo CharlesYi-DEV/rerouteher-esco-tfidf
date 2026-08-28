@@ -11,6 +11,9 @@
   },
   "class_count": 19,
   "catalog_size": 258,
+  "esco_comparison_crosswalk_rows": 70,
+  "masco_roles_with_esco_comparisons": 41,
+  "esco_comparison_policy": "ESCO codes and titles are retained as project-crosswalk comparison metadata; the predicted label remains an exact six-digit MASCO code.",
   "selected_C": 0.5,
   "grid_results": [
     {

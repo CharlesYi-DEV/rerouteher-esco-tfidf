@@ -19,7 +19,7 @@ def get_matcher() -> GranularMascoMatcher:
 
 app = FastAPI(
     title="ReRouteHer CV → six-digit MASCO Feasibility API",
-    version="3.0.0",
+    version="3.1.0",
     description="Upload one CV and compare JobHop-trained TF-IDF and MiniLM six-digit MASCO suggestions.",
 )
 
@@ -46,6 +46,13 @@ def health() -> dict:
         "label_regex": r"^\d{6}$",
         "catalog_roles": len(matcher.catalog),
         "trainable_classes": len(matcher.classes),
+        "esco_comparison": {
+            "retained": True,
+            "role": "comparison metadata only; MASCO remains the predicted label",
+            "crosswalk_authority": "project crosswalk; not an official ESCO-to-MASCO publication",
+            "review_status": "pending domain-owner review",
+            "masco_roles_mapped": len(matcher.esco_comparisons_by_masco),
+        },
         "resume_dataset": matcher.artifact["resume_dataset"],
         "resume_dataset_sha256": matcher.artifact["resume_dataset_sha256"],
         "models": [
@@ -108,6 +115,10 @@ async def match_cv(cv_file: UploadFile = File(...)) -> dict:
             "taxonomy": "MASCO 2020 granular occupations",
             "label_format": "exactly six digits; printed hyphen form is display-only",
             "resume_dataset": get_matcher().artifact["resume_dataset"],
+            "esco_comparison": (
+                "retained from the project ESCO-to-MASCO crosswalk for comparison only; "
+                "pending domain-owner review"
+            ),
             "human_confirmation_required": True,
             "automatic_employment_decision_use": False,
         },

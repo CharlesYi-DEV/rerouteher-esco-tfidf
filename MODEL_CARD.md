@@ -12,11 +12,14 @@ system. Every suggestion requires confirmation by the user.
 - Stored prediction: exactly six digits, such as `251201`.
 - Printed MASCO form: `2512-01`, display only.
 - Four-digit code: parent-group lineage only, never a role prediction.
+- ESCO code/title: retained project-crosswalk comparison metadata, never the
+  predicted label; pending domain-owner review.
 - Catalog: 258 unique granular MASCO 2020 occupations across ten curated parent
   groups.
 
-The API validates this contract when loading the artifact and again before
-formatting each prediction.
+The API validates the MASCO contract when loading the artifact and again before
+formatting each prediction. It returns the primary and all linked ESCO
+comparison rows separately, including their authority and review status.
 
 ## Training scope
 
